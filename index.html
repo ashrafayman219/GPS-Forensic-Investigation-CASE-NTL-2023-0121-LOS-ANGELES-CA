@@ -1,0 +1,3025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Forensic Investigation - Jan 21, 2023</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            background: #f0f2f5;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .info-panel {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            bottom: 177px;
+            background: white;
+            padding: 0;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+            z-index: 1000;
+            width: 390px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: white;
+            color: #1f2937;
+            padding: 20px 24px 0 24px;
+            border-radius: 12px 12px 0 0;
+        }
+        .panel-header h2 {
+            margin: 0 0 4px 0;
+            color: #1f2937;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .panel-subtitle {
+            margin: 0 0 16px 0;
+            color: #6b7280;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .panel-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .tab-button {
+            flex: 1;
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-button:hover {
+            color: #4b5563;
+        }
+        .tab-button.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px 24px;
+        }
+        .panel-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .panel-content::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .panel-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .panel-content::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .info-panel h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .info-panel h3 {
+            margin: 0 0 16px 0;
+            color: #1f2937;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .section {
+            margin-bottom: 24px;
+        }
+        .section:last-child {
+            margin-bottom: 0;
+        }
+        .gap-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .gap-item:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+            transform: translateX(2px);
+        }
+        .gap-duration {
+            font-size: 16px;
+            font-weight: 700;
+            color: #dc2626;
+            margin-bottom: 4px;
+        }
+        .gap-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 8px;
+        }
+        .gap-time {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 2px;
+        }
+        .gap-no-data {
+            font-size: 11px;
+            color: #dc2626;
+            font-weight: 500;
+            margin: 4px 0;
+        }
+        .point-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .point-item:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+            transform: translateX(2px);
+        }
+        .point-number {
+            font-size: 13px;
+            font-weight: 700;
+            color: #2563eb;
+            margin-bottom: 4px;
+        }
+        .point-time {
+            font-size: 11px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        .point-coords {
+            font-size: 11px;
+            color: #4b5563;
+            font-family: 'Courier New', monospace;
+        }
+        .search-box {
+            margin-bottom: 16px;
+            position: sticky;
+            top: 0;
+            background: white;
+            padding: 12px 0;
+            z-index: 10;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .search-input::placeholder {
+            color: #9ca3af;
+        }
+        .search-helper {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 6px;
+            font-style: italic;
+        }
+        .stat-item {
+            margin: 0 0 12px 0;
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+            font-size: 13px;
+            border-left: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .stat-item:last-child {
+            margin-bottom: 0;
+        }
+        .stat-label {
+            font-weight: 400;
+            color: #6b7280;
+            font-size: 13px;
+        }
+        .stat-value {
+            color: #1f2937;
+            font-weight: 600;
+            font-size: 13px;
+            text-align: right;
+        }
+        .incident-time {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            text-align: center;
+            margin: 0 0 24px 0;
+            font-weight: 600;
+            font-size: 12px;
+            box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25);
+            letter-spacing: 0.3px;
+        }
+        .timeline-control {
+            position: absolute;
+            bottom: 20px;
+            left: 15px;
+            right: 15px;
+            background: white;
+            padding: 16px 24px 16px 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            z-index: 999;
+        }
+        .timeline-slider {
+            width: 100%;
+            margin: 12px 0;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #e5e7eb;
+            outline: none;
+            border-radius: 3px;
+        }
+        .timeline-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .timeline-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #2563eb;
+            cursor: pointer;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .timeline-display {
+            text-align: center;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .tour-mode-indicator {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+        .tour-mode-indicator.timeline {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+        .tour-mode-indicator.flytour {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        .control-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding-bottom: 0;
+        }
+        .control-buttons-left {
+            display: flex;
+            gap: 17px;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            flex: 1;
+        }
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            padding: 0;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        .control-btn:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .control-btn:active {
+            transform: translateY(0);
+        }
+        .control-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: #4b5563;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .control-btn:hover svg {
+            stroke: #2563eb;
+        }
+        .control-btn-label {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: #6b7280;
+            white-space: nowrap;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            pointer-events: none;
+            margin-top: 8px;
+        }
+        .control-btn.active {
+            background: #dc2626;
+            border-color: #dc2626;
+        }
+        .control-btn.active svg {
+            stroke: white;
+        }
+        .control-btn.active:hover {
+            background: #b91c1c;
+            border-color: #b91c1c;
+        }
+        .control-separator {
+            width: 2px;
+            height: 30px;
+            background: #e5e7eb;
+            margin: 0 6px 20px 6px;
+        }
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 8px;
+            padding-left: 8px;
+            border-left: 1px solid #e5e7eb;
+        }
+        .speed-label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .speed-btn {
+            width: 36px;
+            height: 36px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7280;
+            transition: all 0.2s ease;
+        }
+        .speed-btn:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .speed-btn.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            background: #2563eb;
+            color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .time-filter {
+            height: 58px;
+            display: flex;
+            gap: 8px;
+            margin-top: 0;
+            align-items: center;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10002;
+        }
+        .time-filter label {
+            font-weight: 500;
+            color: #6b7280;
+            font-size: 11px;
+        }
+        .time-separator {
+            color: #9ca3af;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        /* Custom Time Picker */
+        .input-time-wrap {
+            position: relative;
+            z-index: 10001;
+        }
+        .input-time-wrap ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+        .time-input-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .time-input-display {
+            width: 110px;
+            padding: 5px 32px 5px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #1f2937;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        .time-input-display:hover {
+            border-color: #2563eb;
+        }
+        .time-input-display.active {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        .time-icon {
+            position: absolute;
+            right: 0;
+            width: 30px;
+            height: 100%;
+            background: #2563eb;
+            border-radius: 0 6px 6px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            pointer-events: none;
+        }
+        .time-icon svg {
+            width: 14px;
+            height: 14px;
+            stroke: white;
+            stroke-width: 2;
+            fill: none;
+        }
+        .time-dropdown {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 0;
+            z-index: 10003;
+            background: white;
+            padding: 10px;
+            width: 260px;
+            height: 250px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            display: none;
+            border: 1px solid #e5e7eb;
+            flex-direction: column;
+        }
+        .time-dropdown.show {
+            display: flex;
+        }
+        .time-columns-wrapper {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .time-column-header {
+            display: flex;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 6px;
+        }
+        .time-column-title {
+            flex-grow: 1;
+            width: calc(100% / 4);
+            text-align: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .time-column {
+            overflow-y: auto;
+            padding: 0 5px;
+            flex-grow: 1;
+            width: calc(100% / 4);
+        }
+        .time-column::-webkit-scrollbar {
+            width: 4px;
+        }
+        .time-column::-webkit-scrollbar-track {
+            background: #f3f4f6;
+        }
+        .time-column::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+        .time-column::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .time-column li {
+            position: relative;
+            width: 100%;
+            height: 36px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.15s;
+            cursor: pointer;
+            border-radius: 4px;
+            color: #4b5563;
+        }
+        .time-column li:not(:last-child) {
+            margin-bottom: 4px;
+        }
+        .time-column li:hover {
+            background-color: #dbeafe;
+            color: #2563eb;
+        }
+        .time-column li.active {
+            background-color: #2563eb;
+            color: white;
+        }
+        
+        .filter-btn {
+            padding: 5px 12px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            color: #4b5563;
+            transition: all 0.2s ease;
+        }
+        .filter-btn:hover {
+            background: #f3f4f6;
+            border-color: #2563eb;
+            color: #2563eb;
+        }
+        .filter-btn.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+        .filter-btn.primary:hover {
+            background: #1d4ed8;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0 0 8px 0;
+            font-size: 12px;
+            color: #4b5563;
+        }
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+        .legend-color {
+            width: 24px;
+            height: 3px;
+            margin-right: 10px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .loading h2 {
+            color: #1f2937;
+            font-size: 28px;
+            margin-bottom: 8px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .loading p {
+            color: #6b7280;
+            font-size: 15px;
+            margin-bottom: 40px;
+            font-weight: 400;
+        }
+        .loading-animation {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+        .loading-map-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            animation: pulse-icon 2s ease-in-out infinite;
+        }
+        .loading-map-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: #2563eb;
+            filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.2));
+        }
+        .loading-dots {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .loading-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #2563eb;
+            border-radius: 50%;
+            opacity: 0;
+            animation: orbit 3s ease-in-out infinite;
+        }
+        .loading-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+        .loading-dot:nth-child(2) {
+            animation-delay: 0.75s;
+        }
+        .loading-dot:nth-child(3) {
+            animation-delay: 1.5s;
+        }
+        .loading-dot:nth-child(4) {
+            animation-delay: 2.25s;
+        }
+        @keyframes pulse-icon {
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1);
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+        }
+        @keyframes orbit {
+            0% {
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(0deg) translateX(50px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(360deg) translateX(50px) rotate(-360deg);
+                opacity: 1;
+            }
+        }
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .modal-backdrop {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-backdrop.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+        .modal-content h2 {
+            font-size: 24px;
+            color: #1f2937;
+            margin: 0 0 12px 0;
+            font-weight: 700;
+        }
+        .modal-content p {
+            font-size: 14px;
+            color: #6b7280;
+            margin: 0 0 32px 0;
+            line-height: 1.6;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+        }
+        .modal-btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .modal-btn.primary {
+            background: #2563eb;
+            color: white;
+        }
+        .modal-btn.primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+        .modal-btn.secondary {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+        .modal-btn.secondary:hover {
+            background: #e5e7eb;
+            transform: translateY(-2px);
+        }
+        .modal-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        .custom-popup {
+            min-width: 280px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 0;
+        }
+        .custom-popup .leaflet-popup-content {
+            margin: 0;
+            min-width: 280px;
+        }
+        .custom-popup .leaflet-popup-tip {
+            background: white;
+        }
+        .custom-popup .leaflet-popup-close-button {
+            color: white !important;
+            font-size: 20px !important;
+            font-weight: 300 !important;
+            padding: 8px 12px !important;
+            top: 4px !important;
+            right: 4px !important;
+            width: auto !important;
+            height: auto !important;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .custom-popup .leaflet-popup-close-button:hover {
+            opacity: 1;
+            background: rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        .popup-header {
+            background: #1e40af;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .popup-header.incident {
+            background: #dc2626;
+        }
+        .popup-body {
+            padding: 16px;
+        }
+        .popup-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 8px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .popup-row:last-child {
+            border-bottom: none;
+        }
+        .popup-label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .popup-value {
+            font-size: 13px;
+            color: #1f2937;
+            font-weight: 600;
+            text-align: right;
+        }
+        .popup-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .popup-status.before {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .popup-status.after {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .export-panel {
+            margin: 0;
+            padding: 0;
+            border-top: none;
+        }
+        .export-panel h3 {
+            margin: 0 0 12px 0 !important;
+        }
+        .export-panel .control-buttons {
+            margin-top: 0;
+            gap: 6px;
+            flex-direction: column;
+        }
+        .export-panel .btn {
+            width: 100%;
+            justify-content: center;
+        }
+        .map-tools {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .tool-button {
+            width: 44px;
+            height: 44px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .tool-button:hover {
+            background: #f9fafb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .tool-button:active {
+            transform: translateY(0);
+        }
+        .tool-button svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: #6b7280;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: stroke 0.2s ease;
+        }
+        .tool-button:hover svg {
+            stroke: #2563eb;
+        }
+        .tooltip {
+            position: absolute;
+            right: 52px;
+            background: #1f2937;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            right: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 5px solid #1f2937;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+        }
+        .tool-button:hover .tooltip {
+            opacity: 1;
+        }
+        @media print {
+            .info-panel, .timeline-control {
+                display: none;
+            }
+        }
+        @media (max-width: 768px) {
+            .info-panel {
+                width: 280px;
+                bottom: 250px;
+            }
+            .legend {
+                bottom: 250px;
+                right: 10px;
+                min-width: 180px;
+            }
+            .timeline-control {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 16px;
+            }
+            .btn {
+                padding: 8px 14px;
+                font-size: 12px;
+            }
+        }
+        @media (max-width: 1024px) {
+            .info-panel {
+                width: 300px;
+            }
+            .legend {
+                min-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <h2>GPS Forensic Investigation</h2>
+        <p>Analyzing 148 GPS points from January 21, 2023</p>
+        <div class="loading-animation">
+            <div class="loading-map-icon">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#2563eb"/>
+                    <circle cx="12" cy="9" r="2.5" fill="white"/>
+                </svg>
+            </div>
+            <div class="loading-dots">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="modalBackdrop" class="modal-backdrop">
+        <div class="modal-content">
+            <h2>GPS Location Analysis Ready</h2>
+            <p>Choose how you'd like to explore the GPS data from this investigation</p>
+            <div class="modal-buttons">
+                <button class="modal-btn secondary" onclick="showFullRoute()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Explore the Map
+                </button>
+                <button class="modal-btn primary" onclick="startFlyTour()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    Start Fly Tour
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="info-panel">
+        <div class="panel-header">
+            <div class="panel-subtitle">CASE NTL-2023-0121 - LOS ANGELES, CA</div>
+            <h2>GPS Location Analysis - January 21, 2023</h2>
+            <div class="panel-tabs">
+                <button class="tab-button active" onclick="switchTab('overview')">Overview</button>
+                <button class="tab-button" onclick="switchTab('gaps')">Gaps</button>
+                <button class="tab-button" onclick="switchTab('points')">All Points</button>
+            </div>
+        </div>
+        <div class="panel-content">
+            <!-- Overview Tab -->
+            <div id="overviewTab" class="tab-content active">
+                <div class="incident-time">
+                    INCIDENT: 01/21/2023 16:27 (4:27 PM)
+                </div>
+                
+                <div class="section">
+                    <h3>Case Information</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Location</span>
+                        <span class="stat-value">Los Angeles, CA</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total GPS Points</span>
+                        <span class="stat-value" id="totalPoints">148</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Time Range</span>
+                        <span class="stat-value" id="timeRange">07:14 AM - 07:15 PM</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Duration</span>
+                        <span class="stat-value" id="duration">~12 hours</span>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>Route Statistics</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Distance</span>
+                        <span class="stat-value" id="totalDistance">Calculating...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Average Speed</span>
+                        <span class="stat-value" id="avgSpeed">Calculating...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Points Before Incident</span>
+                        <span class="stat-value" id="pointsBefore">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Points After Incident</span>
+                        <span class="stat-value" id="pointsAfter">0</span>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>Current Selection</h3>
+                    <div class="stat-item">
+                        <span class="stat-label">Viewing Point</span>
+                        <span class="stat-value" id="currentPoint">1 of 148</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Time</span>
+                        <span class="stat-value" id="currentTime">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Minutes to Incident</span>
+                        <span class="stat-value" id="minutesToIncident">-</span>
+                    </div>
+                </div>
+                
+                <div class="section">
+                    <h3>Map Legend</h3>
+                    
+                    <!-- Route Lines -->
+                    <div style="margin-bottom: 16px;">
+                        <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Route Lines</div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #4CAF50;"></div>
+                            <span>Before Incident</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: #FF5722;"></div>
+                            <span>After Incident</span>
+                        </div>
+                    </div>
+                    
+                    <!-- GPS Points -->
+                    <div>
+                        <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">GPS Points</div>
+                        <div class="legend-item">
+                            <div style="width: 12px; height: 12px; border-radius: 50%; background: #FFD700; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3); flex-shrink: 0;"></div>
+                            <span>Incident Location</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 12px; height: 12px; border-radius: 50%; background: #9C27B0; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3); flex-shrink: 0;"></div>
+                            <span>Within ±2 min of incident</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 12px; height: 12px; border-radius: 50%; background: #4CAF50; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3); flex-shrink: 0;"></div>
+                            <span>0–30 min before incident</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 12px; height: 12px; border-radius: 50%; background: #FF5722; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3); flex-shrink: 0;"></div>
+                            <span>0–30 min after incident</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 12px; height: 12px; border-radius: 50%; background: #9E9E9E; margin-right: 10px; border: 2px solid #fff; box-shadow: 0 0 3px rgba(0,0,0,0.3); flex-shrink: 0;"></div>
+                            <span>All other recorded points</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Gaps Tab -->
+            <div id="gapsTab" class="tab-content">
+                <div class="section">
+                    <h3>GPS Data Gaps</h3>
+                    <div id="gapsList">
+                        <!-- Gaps will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- All Points Tab -->
+            <div id="pointsTab" class="tab-content">
+                <div class="section">
+                    <h3>All GPS Points</h3>
+                    <div class="search-box">
+                        <input type="text" class="search-input" id="pointsSearch" 
+                               placeholder="Search by point #, time, or coordinates..." 
+                               oninput="filterPoints(this.value)">
+                        <div class="search-helper">Example: #15, 08:55, 33.912, -118.070</div>
+                    </div>
+                    <div id="pointsList">
+                        <!-- Points will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Map Tools Overlay -->
+    <div class="map-tools">
+        <!-- Zoom In -->
+        <button class="tool-button" onclick="zoomIn()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span class="tooltip">Zoom In</span>
+        </button>
+        
+        <!-- Zoom Out -->
+        <button class="tool-button" onclick="zoomOut()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span class="tooltip">Zoom Out</span>
+        </button>
+        
+        <!-- Home / Reset View -->
+        <button class="tool-button" onclick="resetView()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            <span class="tooltip">Reset View</span>
+        </button>
+        
+        <!-- Separator -->
+        <div style="height: 1px; background: #e5e7eb; margin: 5px 8px;"></div>
+        
+        <!-- Toggle Basemap -->
+        <button class="tool-button" onclick="toggleBasemap()" id="basemapToggle">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+            </svg>
+            <span class="tooltip">Toggle Satellite</span>
+        </button>
+        
+        <!-- Separator -->
+        <div style="height: 1px; background: #e5e7eb; margin: 5px 8px;"></div>
+        
+        <!-- Export Report -->
+        <button class="tool-button" onclick="exportReport()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke-width="2"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <line x1="10" y1="9" x2="8" y2="9"/>
+            </svg>
+            <span class="tooltip">Export Report</span>
+        </button>
+        
+        <!-- Capture Map -->
+        <button class="tool-button" onclick="captureMap()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke-width="2"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span class="tooltip">Capture Map</span>
+        </button>
+        
+        <!-- Toggle Heatmap -->
+        <button class="tool-button" onclick="toggleHeatmap()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.66 11.2C17.43 10.9 17.15 10.64 16.89 10.38C16.22 9.78 15.46 9.35 14.82 8.72C13.33 7.26 13 4.85 13.95 3C13 3.23 12.17 3.75 11.46 4.32C8.87 6.4 7.85 10.07 9.07 13.22C9.11 13.32 9.15 13.42 9.15 13.55C9.15 13.77 9 13.97 8.8 14.05C8.57 14.15 8.33 14.09 8.14 13.93C8.08 13.88 8.04 13.83 8 13.76C6.87 12.33 6.69 10.28 7.45 8.64C5.78 10 4.87 12.3 5 14.47C5.06 14.97 5.12 15.47 5.29 15.97C5.43 16.57 5.7 17.17 6 17.7C7.08 19.43 8.95 20.67 10.96 20.92C13.1 21.19 15.39 20.8 17.03 19.32C18.86 17.66 19.5 15 18.56 12.72L18.43 12.46C18.22 12 17.66 11.2 17.66 11.2Z"/>
+            </svg>
+            <span class="tooltip">Toggle Heatmap</span>
+        </button>
+        
+        <!-- Separator -->
+        <div style="height: 1px; background: #e5e7eb; margin: 5px 8px;"></div>
+        
+        <!-- Clear Route Lines -->
+        <button class="tool-button" onclick="clearRouteOnly()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="6" cy="6" r="2.5" fill="#6b7280"/>
+                <circle cx="18" cy="18" r="2.5" fill="#6b7280"/>
+                <path d="M6 6 Q10 12, 18 18" stroke-dasharray="2,2" stroke-width="2"/>
+            </svg>
+            <span class="tooltip">Clear Route</span>
+        </button>
+        
+        <!-- Clear Points -->
+        <button class="tool-button" onclick="clearPointsOnly()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                <circle cx="12" cy="9" r="2.5" fill="white"/>
+            </svg>
+            <span class="tooltip">Clear Points</span>
+        </button>
+    </div>
+    
+    <div class="timeline-control">
+        <div class="timeline-display">
+            <span id="tourModeIndicator" class="tour-mode-indicator timeline" style="display: none;">Timeline Mode</span>
+            <span>Point 1 of 148 - 01/21/2023 07:14:17 AM</span>
+        </div>
+        <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="147" value="0" step="1">
+        
+        <div class="control-buttons">
+            <div class="control-buttons-left">
+            <!-- Play Timeline -->
+            <button class="control-btn" onclick="playAnimation()" title="Play Timeline Animation">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <span class="control-btn-label">Timeline</span>
+            </button>
+            
+            <!-- Pause -->
+            <button class="control-btn" onclick="pauseAnimation()" title="Pause Any Animation">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+                <span class="control-btn-label">Pause</span>
+            </button>
+            
+            <!-- Reset -->
+            <button class="control-btn" onclick="resetTimeline()" title="Reset to Start">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <polyline points="1 4 1 10 7 10"/>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                </svg>
+                <span class="control-btn-label">Reset</span>
+            </button>
+            
+            <div class="control-separator"></div>
+            
+            <!-- Fly Tour -->
+            <button class="control-btn" onclick="toggleFlyTour()" title="Start/Stop Fly Tour (Street View)" id="flyTourBtn">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span class="control-btn-label">Fly Tour</span>
+            </button>
+            
+            <!-- Jump to Incident -->
+            <button class="control-btn" onclick="jumpToIncident()" title="Jump to Incident Location">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span class="control-btn-label">Incident</span>
+            </button>
+            
+            <!-- Show All -->
+            <button class="control-btn" onclick="showAll()" title="Show Full Route">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <span class="control-btn-label">Show All</span>
+            </button>
+            
+            <!-- Clear All -->
+            <button class="control-btn" onclick="clearRoute()" title="Clear Everything">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                <span class="control-btn-label">Clear All</span>
+            </button>
+            
+            <!-- Speed Control -->
+            <div class="speed-control">
+                <span class="speed-label">Speed:</span>
+                <button class="speed-btn" onclick="setSpeed(0.5)" id="speed-0.5">0.5x</button>
+                <button class="speed-btn active" onclick="setSpeed(1)" id="speed-1">1x</button>
+                <button class="speed-btn" onclick="setSpeed(2)" id="speed-2">2x</button>
+                <button class="speed-btn" onclick="setSpeed(4)" id="speed-4">4x</button>
+            </div>
+            </div>
+            
+            <!-- Time Filter - moved to same row -->
+            <div class="time-filter">
+            <label>Time Filter:</label>
+            
+            <!-- Start Time Picker -->
+            <div class="input-time-wrap">
+                <div class="time-input-box">
+                    <input type="text" class="time-input-display" id="startTimeDisplay" readonly placeholder="07:00:00 AM" value="07:00:00 AM">
+                    <span class="time-icon">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </span>
+                </div>
+                <div class="time-dropdown" id="startTimeDropdown">
+                    <div class="time-column-header">
+                        <div class="time-column-title">Hour</div>
+                        <div class="time-column-title">Min</div>
+                        <div class="time-column-title">Sec</div>
+                        <div class="time-column-title">Period</div>
+                    </div>
+                    <div class="time-columns-wrapper">
+                        <div class="time-column">
+                            <ul id="startHourList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="startMinuteList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="startSecondList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="startPeriodList">
+                                <li class="active" data-period="AM">AM</li>
+                                <li data-period="PM">PM</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <span class="time-separator">to</span>
+            
+            <!-- End Time Picker -->
+            <div class="input-time-wrap">
+                <div class="time-input-box">
+                    <input type="text" class="time-input-display" id="endTimeDisplay" readonly placeholder="07:30:00 PM" value="07:30:00 PM">
+                    <span class="time-icon">
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </span>
+                </div>
+                <div class="time-dropdown" id="endTimeDropdown">
+                    <div class="time-column-header">
+                        <div class="time-column-title">Hour</div>
+                        <div class="time-column-title">Min</div>
+                        <div class="time-column-title">Sec</div>
+                        <div class="time-column-title">Period</div>
+                    </div>
+                    <div class="time-columns-wrapper">
+                        <div class="time-column">
+                            <ul id="endHourList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="endMinuteList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="endSecondList"></ul>
+                        </div>
+                        <div class="time-column">
+                            <ul id="endPeriodList">
+                                <li data-period="AM">AM</li>
+                                <li class="active" data-period="PM">PM</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="filter-btn primary" onclick="applyTimeFilter()">Apply</button>
+            <button class="filter-btn" onclick="clearFilter()">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // GPS Data will be loaded
+        let gpsData = null;
+        let map, markers = [], route = null, heatmapLayer = null;
+        let animationInterval = null;
+        let incidentMarker = null;
+        let currentMarker = null;
+        let currentBasemap = 'street';
+        let streetLayer, satelliteLayer;
+        let initialBounds;
+        let isAnimating = false;
+        let staticRoutes = [];  // Store the full routes for show all
+        let animatedRoute = null;  // Progressive route during animation
+        let animationSpeed = 1;  // Default speed multiplier (1x = 500ms per point)
+        let flyTourInterval = null;
+        let isFlyTourActive = false;
+        
+        // Initialize the map
+        async function initMap() {
+            // Load GPS data from file
+            try {
+                const response = await fetch('Locations.geojson');
+                gpsData = await response.json();
+            } catch (error) {
+                console.error('Error loading GPS data:', error);
+                alert('Error loading GPS data. Make sure Locations.geojson is in the same folder.');
+                return;
+            }
+            
+            // Create map centered on Los Angeles
+            map = L.map('map', {
+                zoomControl: false,  // Disable default zoom control
+                attributionControl: true
+            }).setView([33.912, -118.071], 13);
+            
+            // Add OpenStreetMap tiles (Street view)
+            streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+            
+            // Add Satellite tiles (not added by default)
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 19
+            });
+            
+            // Process GPS data
+            processGPSData();
+            
+            // Initialize time pickers
+            initTimePickers();
+            
+            // Show loading for 3 seconds, then show modal
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+                setTimeout(() => {
+                    document.getElementById('modalBackdrop').classList.add('show');
+                }, 500);
+            }, 3000);
+        }
+        
+        // Modal functions
+        function showFullRoute() {
+            document.getElementById('modalBackdrop').classList.remove('show');
+            showAll();
+        }
+        
+        function startFlyTour() {
+            console.log('=== START FLY TOUR FROM MODAL ===');
+            document.getElementById('modalBackdrop').classList.remove('show');
+            
+            // Set initial view to first point before starting tour
+            const firstCoords = gpsData.features[0].geometry.coordinates;
+            
+            map.setView([firstCoords[1], firstCoords[0]], 18, { animate: false });
+            
+            // Start tour after a brief delay to allow map to settle
+            setTimeout(() => {
+                startFlyTourAnimation();
+            }, 800);
+        }
+        
+        // Toggle fly tour (can be called from button or modal)
+        function toggleFlyTour() {
+            if (isFlyTourActive) {
+                console.log('Stopping fly tour from button');
+                stopFlyTour();
+            } else {
+                console.log('Starting fly tour from button');
+                // If starting from button (not modal), jump to first point
+                const firstCoords = gpsData.features[0].geometry.coordinates;
+                map.setView([firstCoords[1], firstCoords[0]], 18, { animate: false });
+                setTimeout(() => {
+                    startFlyTourAnimation();
+                }, 800);
+            }
+        }
+        
+        // Fly Tour Functions
+        function startFlyTourAnimation() {
+            console.log('=== START FLY TOUR ANIMATION ===');
+            
+            if (isFlyTourActive) {
+                stopFlyTour();
+                return;
+            }
+            
+            pauseAnimation(); // Stop regular animation if running
+            isFlyTourActive = true;
+            
+            // Show mode indicator
+            showModeIndicator('flytour');
+            
+            // Change button appearance
+            const btn = document.getElementById('flyTourBtn');
+            btn.classList.add('active');
+            
+            // Hide static routes and show all points
+            hideStaticRoutes();
+            showAllPoints();
+            
+            let currentIndex = 0;
+            const features = gpsData.features;
+            const incidentTime = new Date(gpsData.metadata.incident_time).getTime();
+            let lastCoords = null;
+            
+            function flyToNextPoint() {
+                // console.log(`\n--- Processing Point ${currentIndex + 1} ---`);
+                
+                if (currentIndex >= features.length) {
+                    // console.log('Tour completed, stopping...');
+                    stopFlyTour();
+                    return;
+                }
+                
+                const feature = features[currentIndex];
+                const coords = feature.geometry.coordinates;
+                const props = feature.properties;
+                const pointTime = props.unix_timestamp * 1000;
+                const isIncident = Math.abs(pointTime - incidentTime) < 60000; // Within 1 minute
+                
+                // console.log('Point sequence:', props.sequence);
+                // console.log('Point coordinates:', coords);
+                // console.log('Is incident:', isIncident);
+                
+                // Calculate distance from last point
+                let distance = 0;
+                if (lastCoords) {
+                    const lat1 = lastCoords[1], lon1 = lastCoords[0];
+                    const lat2 = coords[1], lon2 = coords[0];
+                    const R = 6371e3; // Earth's radius in meters
+                    const φ1 = lat1 * Math.PI / 180;
+                    const φ2 = lat2 * Math.PI / 180;
+                    const Δφ = (lat2 - lat1) * Math.PI / 180;
+                    const Δλ = (lon2 - lon1) * Math.PI / 180;
+                    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                              Math.cos(φ1) * Math.cos(φ2) *
+                              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    distance = R * c; // Distance in meters
+                    // console.log('Distance from last point:', distance.toFixed(2), 'meters');
+                } else {
+                    // console.log('First point - no previous coordinates');
+                }
+                
+                // console.log('Current map center before move:', map.getCenter());
+                // console.log('Current map zoom before move:', map.getZoom());
+                
+                // Skip movement for first point if we're already there
+                if (currentIndex === 0) {
+                    // console.log('First point - skipping flyTo since map was pre-positioned');
+                    lastCoords = coords;
+                } else if (distance > 0 && distance < 50) {
+                    // console.log('Using panTo (points are close)');
+                    map.panTo([coords[1], coords[0]], {
+                        animate: true,
+                        duration: 0.5,
+                        easeLinearity: 0.5
+                    });
+                    // Ensure zoom level is maintained
+                    if (map.getZoom() !== 18) {
+                        // console.log('Adjusting zoom to 18');
+                        map.setZoom(18, { animate: false });
+                    }
+                    lastCoords = coords;
+                } else if (distance === 0 && lastCoords) {
+                    // console.log('Distance is 0 - points are identical, skipping move');
+                    lastCoords = coords;
+                } else {
+                    // console.log('Using flyTo (points are far)');
+                    // Fly to point with close zoom (street level)
+                    map.flyTo([coords[1], coords[0]], 18, {
+                        duration: 1.2,
+                        easeLinearity: 0.5
+                    });
+                    lastCoords = coords;
+                }
+                
+                // Update timeline display
+                document.getElementById('timelineSlider').value = currentIndex;
+                const displayText = document.querySelector('.timeline-display > span:last-child');
+                if (displayText) {
+                    displayText.textContent = `Point ${props.sequence} of 148 - ${props.time_display}`;
+                }
+                
+                // Draw progressive route
+                drawProgressiveRoute(currentIndex);
+                
+                // Add current marker
+                if (currentMarker) {
+                    map.removeLayer(currentMarker);
+                }
+                
+                const markerColor = isIncident ? '#FFD700' : '#2196F3';
+                const markerSize = isIncident ? '30px' : '20px';
+                const pulseEffect = isIncident ? 'animation: pulse 1s infinite;' : '';
+                
+                currentMarker = L.marker([coords[1], coords[0]], {
+                    icon: L.divIcon({
+                        className: 'current-marker',
+                        html: `<div style="background: ${markerColor}; width: ${markerSize}; height: ${markerSize}; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px rgba(0,0,0,0.5); ${pulseEffect}"></div>`,
+                        iconSize: [parseInt(markerSize), parseInt(markerSize)]
+                    })
+                }).addTo(map);
+                
+                // Add pulse animation for incident
+                if (isIncident) {
+                    const style = document.createElement('style');
+                    style.textContent = `
+                        @keyframes pulse {
+                            0%, 100% { transform: scale(1); opacity: 1; }
+                            50% { transform: scale(1.2); opacity: 0.8; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    
+                    // Show incident popup
+                    currentMarker.bindPopup(`
+                        <div class="popup-header incident">
+                            INCIDENT LOCATION - POINT ${props.sequence}
+                        </div>
+                        <div class="popup-body">
+                            <div class="popup-row">
+                                <span class="popup-label">Time</span>
+                                <span class="popup-value">${props.time_display}</span>
+                            </div>
+                            <div class="popup-row">
+                                <span class="popup-label">Coordinates</span>
+                                <span class="popup-value">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}</span>
+                            </div>
+                        </div>
+                    `, { className: 'custom-popup' }).openPopup();
+                    
+                    // console.log('Incident point - waiting 5 seconds');
+                    // Wait longer at incident (5 seconds)
+                    flyTourInterval = setTimeout(flyToNextPoint, 5000);
+                } else {
+                    // Adjust wait time based on distance (shorter for close points)
+                    const waitTime = distance < 50 ? 1500 : 2000;
+                    // console.log('Waiting', waitTime, 'ms before next point');
+                    flyTourInterval = setTimeout(flyToNextPoint, waitTime);
+                }
+                
+                currentIndex++;
+            }
+            
+            console.log('Calling flyToNextPoint for first time');
+            flyToNextPoint();
+        }
+        
+        function stopFlyTour() {
+            isFlyTourActive = false;
+            
+            if (flyTourInterval) {
+                clearTimeout(flyTourInterval);
+                flyTourInterval = null;
+            }
+            
+            // Hide mode indicator
+            hideModeIndicator();
+            
+            // Reset button appearance
+            const btn = document.getElementById('flyTourBtn');
+            btn.classList.remove('active');
+            
+            // Show static routes
+            showStaticRoutes();
+        }
+        
+        // Time Picker Functions
+        let startTimeValues = { hour: 7, minute: 0, second: 0, period: 'AM' };
+        let endTimeValues = { hour: 7, minute: 30, second: 0, period: 'PM' };
+        
+        function initTimePickers() {
+            // Populate hours (1-12)
+            const startHourList = document.getElementById('startHourList');
+            const endHourList = document.getElementById('endHourList');
+            for (let i = 1; i <= 12; i++) {
+                const startLi = document.createElement('li');
+                startLi.textContent = i.toString().padStart(2, '0');
+                startLi.dataset.value = i;
+                if (i === 7) startLi.classList.add('active');
+                startLi.addEventListener('click', () => selectTime('start', 'hour', i, startLi));
+                startHourList.appendChild(startLi);
+                
+                const endLi = document.createElement('li');
+                endLi.textContent = i.toString().padStart(2, '0');
+                endLi.dataset.value = i;
+                if (i === 7) endLi.classList.add('active');
+                endLi.addEventListener('click', () => selectTime('end', 'hour', i, endLi));
+                endHourList.appendChild(endLi);
+            }
+            
+            // Populate minutes (0-59)
+            const startMinuteList = document.getElementById('startMinuteList');
+            const endMinuteList = document.getElementById('endMinuteList');
+            for (let i = 0; i <= 59; i++) {
+                const startLi = document.createElement('li');
+                startLi.textContent = i.toString().padStart(2, '0');
+                startLi.dataset.value = i;
+                if (i === 0) startLi.classList.add('active');
+                startLi.addEventListener('click', () => selectTime('start', 'minute', i, startLi));
+                startMinuteList.appendChild(startLi);
+                
+                const endLi = document.createElement('li');
+                endLi.textContent = i.toString().padStart(2, '0');
+                endLi.dataset.value = i;
+                if (i === 30) endLi.classList.add('active');
+                endLi.addEventListener('click', () => selectTime('end', 'minute', i, endLi));
+                endMinuteList.appendChild(endLi);
+            }
+            
+            // Populate seconds (0-59)
+            const startSecondList = document.getElementById('startSecondList');
+            const endSecondList = document.getElementById('endSecondList');
+            for (let i = 0; i <= 59; i++) {
+                const startLi = document.createElement('li');
+                startLi.textContent = i.toString().padStart(2, '0');
+                startLi.dataset.value = i;
+                if (i === 0) startLi.classList.add('active');
+                startLi.addEventListener('click', () => selectTime('start', 'second', i, startLi));
+                startSecondList.appendChild(startLi);
+                
+                const endLi = document.createElement('li');
+                endLi.textContent = i.toString().padStart(2, '0');
+                endLi.dataset.value = i;
+                if (i === 0) endLi.classList.add('active');
+                endLi.addEventListener('click', () => selectTime('end', 'second', i, endLi));
+                endSecondList.appendChild(endLi);
+            }
+            
+            // Period listeners
+            document.getElementById('startPeriodList').querySelectorAll('li').forEach(li => {
+                li.addEventListener('click', () => selectTime('start', 'period', li.dataset.period, li));
+            });
+            document.getElementById('endPeriodList').querySelectorAll('li').forEach(li => {
+                li.addEventListener('click', () => selectTime('end', 'period', li.dataset.period, li));
+            });
+            
+            // Toggle dropdowns
+            document.getElementById('startTimeDisplay').addEventListener('click', () => {
+                document.getElementById('startTimeDropdown').classList.toggle('show');
+                document.getElementById('endTimeDropdown').classList.remove('show');
+            });
+            document.getElementById('endTimeDisplay').addEventListener('click', () => {
+                document.getElementById('endTimeDropdown').classList.toggle('show');
+                document.getElementById('startTimeDropdown').classList.remove('show');
+            });
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.input-time-wrap')) {
+                    document.getElementById('startTimeDropdown').classList.remove('show');
+                    document.getElementById('endTimeDropdown').classList.remove('show');
+                }
+            });
+        }
+        
+        function selectTime(type, field, value, element) {
+            const values = type === 'start' ? startTimeValues : endTimeValues;
+            values[field] = value;
+            
+            // Update active state
+            const parent = element.parentElement;
+            parent.querySelectorAll('li').forEach(li => li.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Update display
+            updateTimeDisplay(type);
+        }
+        
+        function updateTimeDisplay(type) {
+            const values = type === 'start' ? startTimeValues : endTimeValues;
+            const displayId = type === 'start' ? 'startTimeDisplay' : 'endTimeDisplay';
+            const display = `${values.hour.toString().padStart(2, '0')}:${values.minute.toString().padStart(2, '0')}:${values.second.toString().padStart(2, '0')} ${values.period}`;
+            document.getElementById(displayId).value = display;
+        }
+
+        
+        function processGPSData() {
+            const features = gpsData.features;
+            const incidentTime = new Date(gpsData.metadata.incident_time).getTime();
+            
+            // Find incident point (closest to incident time)
+            let incidentPoint = null;
+            let minTimeDiff = Infinity;
+            
+            features.forEach(feature => {
+                const props = feature.properties;
+                const pointTime = props.unix_timestamp * 1000;
+                const timeDiff = Math.abs(pointTime - incidentTime);
+                
+                if (timeDiff < minTimeDiff) {
+                    minTimeDiff = timeDiff;
+                    incidentPoint = feature;
+                }
+            });
+            
+            // Add incident marker
+            if (incidentPoint) {
+                const coords = incidentPoint.geometry.coordinates;
+                incidentMarker = L.marker([coords[1], coords[0]], {
+                    icon: L.divIcon({
+                        className: 'incident-marker',
+                        html: '<div style="background: #FFD700; width: 30px; height: 30px; border-radius: 50%; border: 3px solid #FF5722; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                        iconSize: [30, 30]
+                    }),
+                    zIndexOffset: 1000
+                }).addTo(map);
+                
+                incidentMarker.bindPopup(`
+                    <div class="popup-header incident">
+                        INCIDENT LOCATION
+                    </div>
+                    <div class="popup-body">
+                        <div class="popup-row">
+                            <span class="popup-label">Date & Time</span>
+                            <span class="popup-value">01/21/2023 16:27</span>
+                        </div>
+                        <div class="popup-row">
+                            <span class="popup-label">Coordinates</span>
+                            <span class="popup-value">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}</span>
+                        </div>
+                    </div>
+                `, { className: 'custom-popup' });
+            }
+            
+            // Create all markers
+            features.forEach((feature, index) => {
+                const coords = feature.geometry.coordinates;
+                const props = feature.properties;
+                const minutesToIncident = props.minutes_to_incident;
+                
+                // Determine color based on time proximity to incident
+                let fillColor;
+                if (Math.abs(minutesToIncident) <= 2) {
+                    // Within ±2 minutes of incident
+                    fillColor = '#9C27B0'; // Purple
+                } else if (minutesToIncident < 0 && minutesToIncident >= -30) {
+                    // 0-30 minutes before incident
+                    fillColor = '#4CAF50'; // Green
+                } else if (minutesToIncident >= 0 && minutesToIncident <= 30) {
+                    // 0-30 minutes after incident
+                    fillColor = '#FF5722'; // Red/Orange
+                } else {
+                    // All other recorded points
+                    fillColor = '#9E9E9E'; // Grey
+                }
+                
+                const isAfterIncident = props.minutes_to_incident >= 0;
+                
+                const marker = L.circleMarker([coords[1], coords[0]], {
+                    radius: 7,
+                    fillColor: fillColor,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9,
+                    pane: 'markerPane'
+                });
+                
+                marker.bindPopup(`
+                    <div class="popup-header">
+                        Point ${props.sequence} of 148
+                    </div>
+                    <div class="popup-body">
+                        <div class="popup-row">
+                            <span class="popup-label">Time</span>
+                            <span class="popup-value">${props.time_display}</span>
+                        </div>
+                        <div class="popup-row">
+                            <span class="popup-label">Minutes to Incident</span>
+                            <span class="popup-value">${props.minutes_to_incident.toFixed(2)}</span>
+                        </div>
+                        <div class="popup-row">
+                            <span class="popup-label">Coordinates</span>
+                            <span class="popup-value">${coords[1].toFixed(6)}, ${coords[0].toFixed(6)}</span>
+                        </div>
+                        <div class="popup-row">
+                            <span class="popup-label">Status</span>
+                            <span class="popup-status ${isAfterIncident ? 'after' : 'before'}">${isAfterIncident ? 'After Incident' : 'Before Incident'}</span>
+                        </div>
+                    </div>
+                `, { className: 'custom-popup' });
+                
+                markers.push({
+                    marker: marker,
+                    feature: feature,
+                    index: index
+                });
+            });
+            
+            // Calculate statistics
+            updateStatistics();
+            
+            // Calculate and populate gaps
+            populateGaps();
+            
+            // Populate all points list
+            populateAllPoints();
+            
+            // Setup timeline
+            document.getElementById('timelineSlider').max = features.length - 1;
+            
+            // Show all points by default
+            showAll();
+        }
+        
+        // Tab switching
+        function switchTab(tabName) {
+            // Update button states
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+        
+        // Populate gaps
+        function populateGaps() {
+            const features = gpsData.features;
+            const gaps = [];
+            
+            // Find gaps (more than 20 minutes between points)
+            for (let i = 0; i < features.length - 1; i++) {
+                const currentTime = features[i].properties.unix_timestamp * 1000;
+                const nextTime = features[i + 1].properties.unix_timestamp * 1000;
+                const gapMinutes = (nextTime - currentTime) / (1000 * 60);
+                
+                if (gapMinutes > 20) {
+                    gaps.push({
+                        gapMinutes: gapMinutes,
+                        pointIndex: i,
+                        pointNumber: features[i].properties.sequence,
+                        startTime: features[i].properties.time_display,
+                        endTime: features[i + 1].properties.time_display,
+                        startCoords: features[i].geometry.coordinates,
+                        endCoords: features[i + 1].geometry.coordinates
+                    });
+                }
+            }
+            
+            // Sort by gap duration (largest first)
+            gaps.sort((a, b) => b.gapMinutes - a.gapMinutes);
+            
+            // Populate gaps list
+            const gapsList = document.getElementById('gapsList');
+            gapsList.innerHTML = '';
+            
+            if (gaps.length === 0) {
+                gapsList.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 20px;">No significant gaps found</div>';
+            } else {
+                gaps.forEach((gap, index) => {
+                    const gapDiv = document.createElement('div');
+                    gapDiv.className = 'gap-item';
+                    gapDiv.innerHTML = `
+                        <div class="gap-duration">${gap.gapMinutes.toFixed(1)}m gap</div>
+                        <div class="gap-title">Gap ${index + 1} - after point #${gap.pointNumber}</div>
+                        <div class="gap-time">${gap.startTime}</div>
+                        <div class="gap-no-data">No GPS data recorded</div>
+                        <div class="gap-time">${gap.endTime}</div>
+                    `;
+                    gapDiv.onclick = () => zoomToGap(gap);
+                    gapsList.appendChild(gapDiv);
+                });
+            }
+        }
+        
+        // Populate all points
+        function populateAllPoints() {
+            const features = gpsData.features;
+            const pointsList = document.getElementById('pointsList');
+            pointsList.innerHTML = '';
+            
+            features.forEach((feature, index) => {
+                const props = feature.properties;
+                const coords = feature.geometry.coordinates;
+                
+                const pointDiv = document.createElement('div');
+                pointDiv.className = 'point-item';
+                pointDiv.dataset.sequence = props.sequence;
+                pointDiv.dataset.time = props.time_display.toLowerCase();
+                pointDiv.dataset.coords = `${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}`;
+                pointDiv.innerHTML = `
+                    <div class="point-number">#${props.sequence}</div>
+                    <div class="point-time">${props.time_display}</div>
+                    <div class="point-coords">${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</div>
+                `;
+                pointDiv.onclick = () => zoomToPoint(index);
+                pointsList.appendChild(pointDiv);
+            });
+        }
+        
+        // Filter points by search query
+        function filterPoints(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const pointItems = document.querySelectorAll('#pointsList .point-item');
+            
+            pointItems.forEach(item => {
+                if (!searchTerm) {
+                    item.style.display = 'block';
+                    return;
+                }
+                
+                const sequence = item.dataset.sequence;
+                const time = item.dataset.time;
+                const coords = item.dataset.coords.toLowerCase();
+                
+                // Search in point number (with or without #), time, or coordinates
+                const matchesSequence = sequence.includes(searchTerm.replace('#', ''));
+                const matchesTime = time.includes(searchTerm);
+                const matchesCoords = coords.includes(searchTerm);
+                
+                if (matchesSequence || matchesTime || matchesCoords) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        // Zoom to gap
+        function zoomToGap(gap) {
+            const bounds = L.latLngBounds([
+                [gap.startCoords[1], gap.startCoords[0]],
+                [gap.endCoords[1], gap.endCoords[0]]
+            ]);
+            map.fitBounds(bounds, { padding: [100, 100] });
+        }
+        
+        // Zoom to point
+        function zoomToPoint(index) {
+            const feature = gpsData.features[index];
+            const coords = feature.geometry.coordinates;
+            map.setView([coords[1], coords[0]], 16);
+            
+            // Update timeline
+            document.getElementById('timelineSlider').value = index;
+            updateTimeline(index);
+            
+            // Open marker popup
+            if (markers[index]) {
+                markers[index].marker.openPopup();
+            }
+        }
+        
+        function updateStatistics() {
+            const features = gpsData.features;
+            let totalDistance = 0;
+            let beforeCount = 0;
+            let afterCount = 0;
+            
+            // Calculate distance
+            for (let i = 1; i < features.length; i++) {
+                const p1 = features[i-1].geometry.coordinates;
+                const p2 = features[i].geometry.coordinates;
+                totalDistance += calculateDistance(p1[1], p1[0], p2[1], p2[0]);
+            }
+            
+            // Count before/after
+            features.forEach(f => {
+                if (f.properties.minutes_to_incident < 0) beforeCount++;
+                else afterCount++;
+            });
+            
+            // Calculate time span
+            const startTime = new Date(features[0].properties.unix_timestamp * 1000);
+            const endTime = new Date(features[features.length-1].properties.unix_timestamp * 1000);
+            const durationHours = (endTime - startTime) / (1000 * 60 * 60);
+            
+            const avgSpeed = totalDistance / durationHours;
+            
+            // Update UI
+            document.getElementById('totalDistance').textContent = totalDistance.toFixed(2) + ' km';
+            document.getElementById('avgSpeed').textContent = avgSpeed.toFixed(2) + ' km/h';
+            document.getElementById('pointsBefore').textContent = beforeCount;
+            document.getElementById('pointsAfter').textContent = afterCount;
+        }
+        
+        // Calculate distance between two points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // Timeline functions
+        document.getElementById('timelineSlider').addEventListener('input', function(e) {
+            const index = parseInt(e.target.value);
+            updateTimeline(index);
+        });
+        
+        function updateTimeline(index) {
+            const feature = gpsData.features[index];
+            const props = feature.properties;
+            
+            // Update display
+            const displayText = document.querySelector('.timeline-display > span:last-child');
+            if (displayText) {
+                displayText.textContent = `Point ${props.sequence} of 148 - ${props.time_display}`;
+            }
+            
+            document.getElementById('currentPoint').textContent = `${props.sequence} of 148`;
+            document.getElementById('currentTime').textContent = props.time_display;
+            document.getElementById('minutesToIncident').textContent = props.minutes_to_incident.toFixed(2);
+            
+            // Clear previous current marker
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            
+            // Add current position marker
+            const coords = feature.geometry.coordinates;
+            currentMarker = L.marker([coords[1], coords[0]], {
+                icon: L.divIcon({
+                    className: 'current-marker',
+                    html: '<div style="background: #2196F3; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>',
+                    iconSize: [20, 20]
+                })
+            }).addTo(map);
+            
+            // Only pan to location if NOT animating (allow user to freely explore during animation)
+            if (!isAnimating) {
+                map.panTo([coords[1], coords[0]]);
+            }
+            
+            // Draw route based on animation state
+            if (isAnimating) {
+                // Progressive drawing during animation
+                drawProgressiveRoute(index);
+            } else {
+                // Normal route drawing when not animating
+                drawRouteToPoint(index);
+            }
+        }
+        
+        function drawProgressiveRoute(endIndex) {
+            // Remove previous animated route
+            if (animatedRoute) {
+                map.removeLayer(animatedRoute);
+            }
+            
+            // Create progressive route line
+            const routeCoords = [];
+            for (let i = 0; i <= endIndex; i++) {
+                const coords = gpsData.features[i].geometry.coordinates;
+                routeCoords.push([coords[1], coords[0]]);
+            }
+            
+            if (routeCoords.length > 1) {
+                animatedRoute = L.polyline(routeCoords, {
+                    color: '#2196F3',
+                    weight: 3,
+                    opacity: 0.8
+                }).addTo(map);
+            }
+        }
+        
+        function drawRouteToPoint(endIndex) {
+            // Clear existing route
+            if (route) {
+                map.removeLayer(route);
+            }
+            
+            // Create route line
+            const routeCoords = [];
+            for (let i = 0; i <= endIndex; i++) {
+                const coords = gpsData.features[i].geometry.coordinates;
+                routeCoords.push([coords[1], coords[0]]);
+            }
+            
+            route = L.polyline(routeCoords, {
+                color: '#2196F3',
+                weight: 3,
+                opacity: 0.7
+            }).addTo(map);
+        }
+        
+        function playAnimation() {
+            const slider = document.getElementById('timelineSlider');
+            let currentIndex = parseInt(slider.value);
+            
+            pauseAnimation();
+            isAnimating = true;
+            
+            // Show mode indicator
+            showModeIndicator('timeline');
+            
+            // Zoom map to fit all GPS points
+            const bounds = L.latLngBounds();
+            gpsData.features.forEach(feature => {
+                const coords = feature.geometry.coordinates;
+                bounds.extend([coords[1], coords[0]]);
+            });
+            map.fitBounds(bounds, {
+                padding: [50, 50],
+                maxZoom: 16,
+                animate: true,
+                duration: 1
+            });
+            
+            // Hide static routes and show only points
+            hideStaticRoutes();
+            showAllPoints();
+            
+            // Calculate interval based on speed (base is 500ms, divided by speed multiplier)
+            const interval = 500 / animationSpeed;
+            
+            animationInterval = setInterval(() => {
+                currentIndex++;
+                if (currentIndex >= gpsData.features.length) {
+                    currentIndex = 0;
+                    // Clear animated route when loop restarts
+                    if (animatedRoute) {
+                        map.removeLayer(animatedRoute);
+                        animatedRoute = null;
+                    }
+                }
+                slider.value = currentIndex;
+                updateTimeline(currentIndex);
+            }, interval);
+        }
+        
+        function setSpeed(speed) {
+            animationSpeed = speed;
+            
+            // Update active button
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('speed-' + speed).classList.add('active');
+            
+            // If currently playing, restart with new speed
+            if (isAnimating) {
+                playAnimation();
+            }
+        }
+        
+        function pauseAnimation() {
+            // Stop timeline animation
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+                isAnimating = false;
+                
+                // Restore static routes when paused
+                showStaticRoutes();
+            }
+            
+            // Stop fly tour
+            if (isFlyTourActive) {
+                stopFlyTour();
+            }
+            
+            // Hide mode indicator
+            hideModeIndicator();
+        }
+        
+        // Mode indicator functions
+        function showModeIndicator(mode) {
+            const indicator = document.getElementById('tourModeIndicator');
+            indicator.style.display = 'inline-block';
+            if (mode === 'timeline') {
+                indicator.className = 'tour-mode-indicator timeline';
+                indicator.textContent = '▶ Timeline Mode';
+            } else if (mode === 'flytour') {
+                indicator.className = 'tour-mode-indicator flytour';
+                indicator.textContent = '✈ Fly Tour Mode';
+            }
+        }
+        
+        function hideModeIndicator() {
+            document.getElementById('tourModeIndicator').style.display = 'none';
+        }
+        
+        function resetTimeline() {
+            pauseAnimation();
+            isAnimating = false;
+            document.getElementById('timelineSlider').value = 0;
+            
+            // Clear animated route
+            if (animatedRoute) {
+                map.removeLayer(animatedRoute);
+                animatedRoute = null;
+            }
+            
+            // Restore static routes
+            showStaticRoutes();
+            
+            updateTimeline(0);
+        }
+        
+        function hideStaticRoutes() {
+            // Remove the full colored routes
+            staticRoutes.forEach(routeLayer => {
+                if (map.hasLayer(routeLayer)) {
+                    map.removeLayer(routeLayer);
+                }
+            });
+        }
+        
+        function showStaticRoutes() {
+            // Show the full colored routes
+            staticRoutes.forEach(routeLayer => {
+                if (!map.hasLayer(routeLayer)) {
+                    routeLayer.addTo(map);
+                }
+            });
+        }
+        
+        function showAllPoints() {
+            markers.forEach(item => {
+                if (!map.hasLayer(item.marker)) {
+                    item.marker.addTo(map);
+                }
+            });
+        }
+        
+        function jumpToIncident() {
+            pauseAnimation();
+            const features = gpsData.features;
+            
+            // Find closest point to incident time
+            let closestIndex = 0;
+            let minTimeDiff = Infinity;
+            
+            features.forEach((feature, index) => {
+                const timeDiff = Math.abs(feature.properties.minutes_to_incident);
+                if (timeDiff < minTimeDiff) {
+                    minTimeDiff = timeDiff;
+                    closestIndex = index;
+                }
+            });
+            
+            document.getElementById('timelineSlider').value = closestIndex;
+            updateTimeline(closestIndex);
+        }
+        
+        function showAll() {
+            pauseAnimation();
+            isAnimating = false;
+            
+            // Clear animated route
+            if (animatedRoute) {
+                map.removeLayer(animatedRoute);
+                animatedRoute = null;
+            }
+            
+            // Clear route
+            if (route) {
+                map.removeLayer(route);
+            }
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            
+            // Add all markers
+            markers.forEach(item => {
+                if (!map.hasLayer(item.marker)) {
+                    item.marker.addTo(map);
+                }
+            });
+            
+            // Draw complete route with color coding and show static routes
+            drawCompleteRoute();
+            showStaticRoutes();
+            
+            // Fit bounds
+            const bounds = L.latLngBounds(markers.map(item => {
+                const coords = item.feature.geometry.coordinates;
+                return [coords[1], coords[0]];
+            }));
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+        
+        function drawCompleteRoute() {
+            const features = gpsData.features;
+            const incidentTime = new Date(gpsData.metadata.incident_time).getTime();
+            
+            // Clear previous static routes
+            staticRoutes.forEach(routeLayer => {
+                if (map.hasLayer(routeLayer)) {
+                    map.removeLayer(routeLayer);
+                }
+            });
+            staticRoutes = [];
+            
+            // Find incident index
+            let incidentIndex = features.findIndex(f => f.properties.minutes_to_incident >= 0);
+            if (incidentIndex === -1) incidentIndex = features.length;
+            
+            // Route before incident (green)
+            const beforeCoords = [];
+            for (let i = 0; i < incidentIndex; i++) {
+                const coords = features[i].geometry.coordinates;
+                beforeCoords.push([coords[1], coords[0]]);
+            }
+            
+            if (beforeCoords.length > 0) {
+                const beforeRoute = L.polyline(beforeCoords, {
+                    color: '#4CAF50',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                staticRoutes.push(beforeRoute);
+            }
+            
+            // Route after incident (red)
+            const afterCoords = [];
+            for (let i = incidentIndex; i < features.length; i++) {
+                const coords = features[i].geometry.coordinates;
+                afterCoords.push([coords[1], coords[0]]);
+            }
+            
+            if (afterCoords.length > 0) {
+                const afterRoute = L.polyline(afterCoords, {
+                    color: '#FF5722',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                staticRoutes.push(afterRoute);
+            }
+        }
+        
+        function clearRoute() {
+            pauseAnimation();
+            isAnimating = false;
+            
+            // Remove all markers
+            markers.forEach(item => {
+                if (map.hasLayer(item.marker)) {
+                    map.removeLayer(item.marker);
+                }
+            });
+            
+            // Clear animated route
+            if (animatedRoute) {
+                map.removeLayer(animatedRoute);
+                animatedRoute = null;
+            }
+            
+            // Clear route
+            if (route) {
+                map.removeLayer(route);
+            }
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            
+            // Remove static routes
+            staticRoutes.forEach(routeLayer => {
+                if (map.hasLayer(routeLayer)) {
+                    map.removeLayer(routeLayer);
+                }
+            });
+            staticRoutes = [];
+        }
+        
+        function clearRouteOnly() {
+            pauseAnimation();
+            isAnimating = false;
+            
+            // Clear animated route
+            if (animatedRoute) {
+                map.removeLayer(animatedRoute);
+                animatedRoute = null;
+            }
+            
+            // Clear route
+            if (route) {
+                map.removeLayer(route);
+            }
+            
+            // Remove static routes
+            staticRoutes.forEach(routeLayer => {
+                if (map.hasLayer(routeLayer)) {
+                    map.removeLayer(routeLayer);
+                }
+            });
+            staticRoutes = [];
+            
+            // Reset slider and display
+            document.getElementById('timelineSlider').value = 0;
+            const displayText = document.querySelector('.timeline-display > span:last-child');
+            if (displayText && gpsData.features.length > 0) {
+                const firstProps = gpsData.features[0].properties;
+                displayText.textContent = `Point ${firstProps.sequence} of 148 - ${firstProps.time_display}`;
+            }
+        }
+        
+        function clearPointsOnly() {
+            pauseAnimation();
+            isAnimating = false;
+            
+            // Remove all markers
+            markers.forEach(item => {
+                if (map.hasLayer(item.marker)) {
+                    map.removeLayer(item.marker);
+                }
+            });
+            
+            // Remove current marker
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            
+            // Reset slider and display
+            document.getElementById('timelineSlider').value = 0;
+            const displayText = document.querySelector('.timeline-display > span:last-child');
+            if (displayText && gpsData.features.length > 0) {
+                const firstProps = gpsData.features[0].properties;
+                displayText.textContent = `Point ${firstProps.sequence} of 148 - ${firstProps.time_display}`;
+            }
+        }
+        
+        function applyTimeFilter() {
+            // Get 12-hour format values
+            let startHour = startTimeValues.hour;
+            const startMin = startTimeValues.minute;
+            const startSec = startTimeValues.second;
+            const startPeriod = startTimeValues.period;
+            
+            let endHour = endTimeValues.hour;
+            const endMin = endTimeValues.minute;
+            const endSec = endTimeValues.second;
+            const endPeriod = endTimeValues.period;
+            
+            // Convert to 24-hour format
+            if (startPeriod === 'PM' && startHour !== 12) {
+                startHour += 12;
+            } else if (startPeriod === 'AM' && startHour === 12) {
+                startHour = 0;
+            }
+            
+            if (endPeriod === 'PM' && endHour !== 12) {
+                endHour += 12;
+            } else if (endPeriod === 'AM' && endHour === 12) {
+                endHour = 0;
+            }
+            
+            // Close dropdowns
+            document.getElementById('startTimeDropdown').classList.remove('show');
+            document.getElementById('endTimeDropdown').classList.remove('show');
+            
+            clearRoute();
+            
+            const filteredMarkers = [];
+            const routeCoords = [];
+            
+            markers.forEach(item => {
+                const timeStr = item.feature.properties.time_local;
+                const date = new Date(timeStr);
+                const hour = date.getHours();
+                const min = date.getMinutes();
+                const sec = date.getSeconds();
+                const timeInSeconds = hour * 3600 + min * 60 + sec;
+                const startInSeconds = startHour * 3600 + startMin * 60 + startSec;
+                const endInSeconds = endHour * 3600 + endMin * 60 + endSec;
+                
+                if (timeInSeconds >= startInSeconds && timeInSeconds <= endInSeconds) {
+                    item.marker.addTo(map);
+                    filteredMarkers.push(item);
+                    const coords = item.feature.geometry.coordinates;
+                    routeCoords.push([coords[1], coords[0]]);
+                }
+            });
+            
+            // Draw filtered route
+            if (routeCoords.length > 0) {
+                L.polyline(routeCoords, {
+                    color: '#2196F3',
+                    weight: 4,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                // Fit bounds to filtered points
+                map.fitBounds(L.latLngBounds(routeCoords), { padding: [50, 50] });
+            }
+        }
+        
+        function clearFilter() {
+            // Reset values
+            startTimeValues = { hour: 7, minute: 0, second: 0, period: 'AM' };
+            endTimeValues = { hour: 7, minute: 30, second: 0, period: 'PM' };
+            
+            // Reset active states in start time picker
+            document.getElementById('startHourList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 7);
+            });
+            document.getElementById('startMinuteList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 0);
+            });
+            document.getElementById('startSecondList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 0);
+            });
+            document.getElementById('startPeriodList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', li.dataset.period === 'AM');
+            });
+            
+            // Reset active states in end time picker
+            document.getElementById('endHourList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 7);
+            });
+            document.getElementById('endMinuteList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 30);
+            });
+            document.getElementById('endSecondList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', parseInt(li.dataset.value) === 0);
+            });
+            document.getElementById('endPeriodList').querySelectorAll('li').forEach(li => {
+                li.classList.toggle('active', li.dataset.period === 'PM');
+            });
+            
+            // Update displays
+            updateTimeDisplay('start');
+            updateTimeDisplay('end');
+            
+            // Close dropdowns
+            document.getElementById('startTimeDropdown').classList.remove('show');
+            document.getElementById('endTimeDropdown').classList.remove('show');
+            
+            showAll();
+        }
+        
+        function toggleHeatmap() {
+            if (heatmapLayer) {
+                map.removeLayer(heatmapLayer);
+                heatmapLayer = null;
+            } else {
+                const heatData = markers.map(item => {
+                    const coords = item.feature.geometry.coordinates;
+                    return [coords[1], coords[0], 1];
+                });
+                
+                heatmapLayer = L.heatLayer(heatData, {
+                    radius: 25,
+                    blur: 15,
+                    maxZoom: 17,
+                    gradient: {
+                        0.0: 'blue',
+                        0.5: 'lime',
+                        0.7: 'yellow',
+                        1.0: 'red'
+                    }
+                }).addTo(map);
+            }
+        }
+        
+        // Map Control Functions
+        function zoomIn() {
+            map.zoomIn();
+        }
+        
+        function zoomOut() {
+            map.zoomOut();
+        }
+        
+        function resetView() {
+            // Fit bounds to all markers
+            if (markers.length > 0) {
+                const bounds = L.latLngBounds(markers.map(item => {
+                    const coords = item.feature.geometry.coordinates;
+                    return [coords[1], coords[0]];
+                }));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            } else {
+                // Fallback to initial view
+                map.setView([33.912, -118.071], 13);
+            }
+        }
+        
+        function toggleBasemap() {
+            if (currentBasemap === 'street') {
+                // Switch to satellite
+                map.removeLayer(streetLayer);
+                map.addLayer(satelliteLayer);
+                currentBasemap = 'satellite';
+            } else {
+                // Switch to street
+                map.removeLayer(satelliteLayer);
+                map.addLayer(streetLayer);
+                currentBasemap = 'street';
+            }
+        }
+        
+        function exportReport() {
+            const features = gpsData.features;
+            
+            // Create CSV header with metadata
+            let csv = 'GPS FORENSIC INVESTIGATION REPORT\n';
+            csv += 'Generated: ' + new Date().toLocaleString() + '\n';
+            csv += '\n';
+            
+            // Analysis Description
+            csv += 'ANALYSIS DESCRIPTION\n';
+            csv += 'Description,"This GPS forensic investigation report analyzes 148 GPS data points collected on January 21, 2023. The analysis focuses on the movement patterns and location data surrounding a critical incident that occurred at 16:27 (4:27 PM). GPS points are categorized based on their temporal proximity to the incident: points within ±2 minutes are marked as critical timeframe points, those 0-30 minutes before/after provide immediate context, and remaining points establish broader movement patterns. The data includes precise timestamps (UTC and local), geographic coordinates, and calculated distances to provide a comprehensive timeline of movements."\n';
+            csv += '\n';
+            
+            // Case Information
+            csv += 'CASE INFORMATION\n';
+            csv += 'Date,01/21/2023\n';
+            csv += 'Incident Time,16:27 (4:27 PM)\n';
+            csv += 'Location,"Los Angeles, CA"\n';
+            csv += 'Timezone,UTC-08:00 (Pacific Standard Time)\n';
+            csv += 'Total GPS Points,' + features.length + '\n';
+            csv += 'Data Source,GeoJSON GPS Tracking Data\n';
+            csv += '\n';
+            
+            // Timeline
+            csv += 'TIMELINE\n';
+            csv += 'First GPS Point,' + features[0].properties.time_display + '\n';
+            csv += 'Last GPS Point,' + features[features.length-1].properties.time_display + '\n';
+            csv += 'Time Span,"' + ((features[features.length-1].properties.unix_timestamp - features[0].properties.unix_timestamp) / 3600).toFixed(2) + ' hours"\n';
+            csv += '\n';
+            
+            // Statistics
+            csv += 'STATISTICS\n';
+            csv += 'Total Distance,' + document.getElementById('totalDistance').textContent + '\n';
+            csv += 'Average Speed,' + document.getElementById('avgSpeed').textContent + '\n';
+            csv += 'Points Before Incident,' + document.getElementById('pointsBefore').textContent + '\n';
+            csv += 'Points After Incident,' + document.getElementById('pointsAfter').textContent + '\n';
+            
+            // Calculate category statistics
+            let withinTwoMin = 0, beforeThirtyMin = 0, afterThirtyMin = 0, otherPoints = 0;
+            features.forEach(f => {
+                const min = f.properties.minutes_to_incident;
+                if (Math.abs(min) <= 2) withinTwoMin++;
+                else if (min < 0 && min >= -30) beforeThirtyMin++;
+                else if (min >= 0 && min <= 30) afterThirtyMin++;
+                else otherPoints++;
+            });
+            csv += 'Points Within ±2 min of Incident,' + withinTwoMin + '\n';
+            csv += 'Points 0-30 min Before Incident,' + beforeThirtyMin + '\n';
+            csv += 'Points 0-30 min After Incident,' + afterThirtyMin + '\n';
+            csv += 'All Other Points,' + otherPoints + '\n';
+            csv += '\n';
+            
+            // Key Findings
+            csv += 'KEY FINDINGS\n';
+            csv += 'Finding,"Analysis of GPS data shows ' + features.length + ' recorded points spanning ' + ((features[features.length-1].properties.unix_timestamp - features[0].properties.unix_timestamp) / 3600).toFixed(2) + ' hours of activity."\n';
+            csv += 'Critical Period,"' + withinTwoMin + ' GPS point(s) recorded within ±2 minutes of the incident time provide the most critical location data."\n';
+            csv += 'Immediate Context,"' + (beforeThirtyMin + afterThirtyMin) + ' GPS points within 30 minutes (before and after) establish the immediate movement patterns around the incident."\n';
+            csv += 'Movement Pattern,"Total distance traveled: ' + document.getElementById('totalDistance').textContent + ' at an average speed of ' + document.getElementById('avgSpeed').textContent + '."\n';
+            csv += '\n';
+            csv += '\n';
+            
+            // CSV data table header with all attributes
+            csv += 'DETAILED GPS POINTS DATA\n';
+            csv += 'Point #,Date/Time (Display),Date/Time (UTC),Date/Time (Local),Unix Timestamp,Latitude,Longitude,Altitude,Minutes to Incident,Status,Time Category,Name,Raw Timestamp\n';
+            
+            // Add all GPS points data with complete attributes
+            features.forEach(feature => {
+                const props = feature.properties;
+                const coords = feature.geometry.coordinates;
+                const minutesToIncident = props.minutes_to_incident;
+                const status = minutesToIncident >= 0 ? 'After Incident' : 'Before Incident';
+                
+                // Determine time category based on proximity to incident
+                let category;
+                if (Math.abs(minutesToIncident) <= 2) {
+                    category = 'Within ±2 min of incident';
+                } else if (minutesToIncident < 0 && minutesToIncident >= -30) {
+                    category = '0-30 min before incident';
+                } else if (minutesToIncident >= 0 && minutesToIncident <= 30) {
+                    category = '0-30 min after incident';
+                } else {
+                    category = 'Other recorded points';
+                }
+                
+                csv += `${props.sequence},"${props.time_display}","${props.time_utc}","${props.time_local}",${props.unix_timestamp},${coords[1].toFixed(6)},${coords[0].toFixed(6)},${coords[2]},${minutesToIncident.toFixed(2)},${status},"${category}","${props.name}","${props.raw_timestamp}"\n`;
+            });
+            
+            csv += '\n';
+            csv += '\n';
+            csv += 'LEGEND\n';
+            csv += 'Category,Description,Color Code\n';
+            csv += 'Incident Location,"The exact location closest to the incident time (16:27)",Gold\n';
+            csv += 'Within ±2 min of incident,"GPS points within 2 minutes before or after the incident - Critical timeframe",Purple\n';
+            csv += '0-30 min before incident,"GPS points recorded 0 to 30 minutes before the incident - Immediate pre-incident context",Green\n';
+            csv += '0-30 min after incident,"GPS points recorded 0 to 30 minutes after the incident - Immediate post-incident context",Red/Orange\n';
+            csv += 'Other recorded points,"All other GPS points outside the 30-minute window - Broader context",Grey\n';
+            csv += '\n';
+            csv += 'METADATA\n';
+            csv += 'Report Format,CSV (Comma-Separated Values)\n';
+            csv += 'Coordinate System,WGS84 (Latitude/Longitude)\n';
+            csv += 'Distance Calculation,Haversine Formula\n';
+            csv += 'Time Format,"Multiple formats provided: Display (human-readable), UTC (universal), Local (timezone-adjusted), Unix (epoch timestamp)"\n';
+            csv += '\n';
+            csv += 'END OF REPORT\n';
+            
+            // Download CSV file
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'GPS_Investigation_Report_' + new Date().toISOString().split('T')[0] + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        function captureMap() {
+            // Hide UI elements temporarily
+            document.querySelector('.info-panel').style.display = 'none';
+            document.querySelector('.timeline-control').style.display = 'none';
+            document.querySelector('.map-tools').style.display = 'none';
+            
+            setTimeout(() => {
+                html2canvas(document.getElementById('map'), {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff'
+                }).then(canvas => {
+                    // Show UI elements again
+                    document.querySelector('.info-panel').style.display = 'flex';
+                    document.querySelector('.timeline-control').style.display = 'block';
+                    document.querySelector('.map-tools').style.display = 'flex';
+                    
+                    // Download image
+                    const link = document.createElement('a');
+                    link.download = 'GPS_Map_' + new Date().toISOString().split('T')[0] + '.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                }).catch(error => {
+                    console.error('Error capturing map:', error);
+                    document.querySelector('.info-panel').style.display = 'flex';
+                    document.querySelector('.timeline-control').style.display = 'block';
+                    document.querySelector('.map-tools').style.display = 'flex';
+                });
+            }, 500);
+        }
+        
+        // Initialize map when page loads
+        window.onload = initMap;
+    </script>
+</body>
+</html>
